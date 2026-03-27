@@ -2,24 +2,30 @@ import streamlit as st
 import pandas as pd
 import os
 
-st.title("📊 Enterprise Sales Dashboard")
-st.write("Welcome to the final stage of our ETL Pipeline! Here is the cleaned data.")
+st.set_page_config(page_title="ETL Sales Dashboard", layout="wide")
 
-# Using the EXACT file name from your screenshot!
-file_path = "data/clean_salesorder.csv"
+st.title("🚀 Enterprise Data Pipeline Dashboard")
+st.write("This data is automatically cleaned and processed by **Apache Airflow**.")
 
-if os.path.exists(file_path):
-    # Read the cleaned data
-    df = pd.read_csv(file_path)
+# Path to your cleaned data
+DATA_PATH = "data/salesorder_cleaned.csv"
+
+if os.path.exists(DATA_PATH):
+    df = pd.read_csv(DATA_PATH)
     
-    # Show the data table
-    st.subheader("Cleaned Dataset")
-    st.dataframe(df)
-    
-    # Show a quick summary
-    st.subheader("Data Summary")
-    st.write(f"**Total Rows:** {len(df)}")
-    st.write(f"**Total Columns:** {len(df.columns)}")
+    # Simple Metrics
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Rows", len(df))
+    col2.metric("Total Sales", f"${df['TotalValue'].sum():,.2f}" if 'TotalValue' in df.columns else "N/A")
+    col3.metric("Status", "Data Cleaned")
 
+    # Data Table
+    st.subheader("Cleaned Data Preview")
+    st.dataframe(df.head(10))
+
+    # Simple Chart
+    if 'OrderDate' in df.columns:
+        st.subheader("Sales Over Time")
+        st.line_chart(df.set_index('OrderDate')['TotalValue'])
 else:
-    st.error(f"Could not find the data file at {file_path}. Make sure the Airflow DAG has run!")
+    st.error(f"Waiting for Airflow... Could not find {DATA_PATH}. Run your DAG first!")
