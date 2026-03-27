@@ -83,7 +83,8 @@ def transform():
     df.to_csv('/opt/airflow/data/salesorder_cleaned.csv', index=False)
     logging.info(f"Data Transformed Successfully. Cleaned rows: {len(df)}")
     
-    # NOTE: If you want to test your email alert again, uncomment the line below!
+    # If you want to test your email alert again, uncomment the line below!
+    
     # raise Exception("Testing Email Alert")
 
 def load():
