@@ -20,16 +20,12 @@ def send_failure_email(context):
     dag_id = task_instance.dag_id
     exception = context.get('exception')
 
-    # <-- Changed to your email
     sender = "vaibhavih2025@gmail.com"
     receiver = "vaibhavih2025@gmail.com"
-
-   
-    password = "ysolicrcwfhznjaq"
+    password = "ysolicrcwfhznjaq" # Remember to keep this private!
 
     subject = f"Airflow Task Failed: {task_id}"
     body = f"Task: {task_id}\nDAG: {dag_id}\nError: {exception}"
-
     message = f"Subject: {subject}\n\n{body}"
 
     try:
@@ -39,44 +35,63 @@ def send_failure_email(context):
             server.ehlo()
             server.login(sender, password)
             server.sendmail(sender, receiver, message)
-
-        logging.info(" Email sent successfully")
-
+        logging.info("Email sent successfully")
     except Exception as e:
-        logging.error(f" Email failed: {e}")
+        logging.error(f"Email failed: {e}")
 
 # 🔹 ETL tasks
 def extract():
     logging.info("Starting Extract Task")
-    df = pd.read_csv('/opt/airflow/data/employee.csv')
-    df = df.head(100)
-    df.to_csv('/opt/airflow/data/data.csv', index=False)
-    logging.info(" Data Extracted Successfully")
+    # Read original tab-separated data
+    df = pd.read_csv('/opt/airflow/data/salesorder.csv', sep="\t")
+    
+    # Save as an intermediate extracted CSV to pass to the transform task
+    df.to_csv('/opt/airflow/data/salesorder_extracted.csv', index=False)
+    logging.info(f"Data Extracted Successfully. Original rows: {len(df)}")
 
 def transform():
-    raise Exception("Testing Email Alert ")  
-# def transform():
-#     logging.info("Starting Transform Task")
+    logging.info("Starting Transform Task")
+    # Read the extracted data
+    df = pd.read_csv('/opt/airflow/data/salesorder_extracted.csv')
 
-#     # Read extracted data
-#     df = pd.read_csv('/opt/airflow/data/data.csv')
+    # ---------------- CLEANING ----------------
+    # Standardize column names
+    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
-#     # Remove missing values
-#     df = df.dropna()
+    # Convert date
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
-#     # Modify column (example)
-#     if "ExperienceInCurrentDomain" in df.columns:
-#         df["ExperienceInCurrentDomain"] = df["ExperienceInCurrentDomain"] * 1.1
+    # Remove null dates
+    df = df.dropna(subset=["date"])
 
-#     # Save transformed data
-#     df.to_csv('/opt/airflow/data/transformed_data.csv', index=False)
+    # Ensure numeric columns
+    df["profit"] = pd.to_numeric(df["profit"], errors="coerce")
+    df["totalprice"] = pd.to_numeric(df["totalprice"], errors="coerce")
+    df["total_amount"] = pd.to_numeric(df["total_amount"], errors="coerce")
 
-#     logging.info("✅ Data Transformed Successfully")
+    # ---------------- NEW COLUMNS ----------------
+    # Profit Margin %
+    df["profit_margin"] = (df["profit"] / df["totalprice"]) * 100
+
+    # Order Year
+    df["order_year"] = df["date"].dt.year
+
+    # Order Month
+    df["order_month"] = df["date"].dt.month
+
+    # Save cleaned dataset
+    df.to_csv('/opt/airflow/data/salesorder_cleaned.csv', index=False)
+    logging.info(f"Data Transformed Successfully. Cleaned rows: {len(df)}")
+    
+    # NOTE: If you want to test your email alert again, uncomment the line below!
+    # raise Exception("Testing Email Alert")
 
 def load():
     logging.info("Starting Load Task")
-    df = pd.read_csv('/opt/airflow/data/transformed_data.csv')
-    logging.info(" Data Loaded Successfully")
+    # Load the final cleaned data
+    df = pd.read_csv('/opt/airflow/data/salesorder_cleaned.csv')
+    
+    logging.info("Data Loaded Successfully!")
     logging.info("\n" + str(df.head()))
 
 # 🔹 DAG definition
@@ -106,4 +121,5 @@ with DAG(
         on_failure_callback=send_failure_email
     )
 
+    # Task Dependencies
     extract_task >> transform_task >> load_task
